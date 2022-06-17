@@ -45,8 +45,7 @@ export function logError(error: ServerError, displayable = false, consoleError =
 
         let sendToServer = true;
 
-        const err = error as any;
-        const message = err.stack?.stack || err.stack || '';
+        const message = error.stack || '';
 
         if (message.includes('TypeError: Failed to fetch')) {
             sendToServer = false;

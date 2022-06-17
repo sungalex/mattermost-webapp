@@ -22,7 +22,7 @@ import App from 'components/app';
 // This is for anything that needs to be done for ALL react components.
 // This runs before we start to render anything.
 function preRenderSetup(callwhendone) {
-    window.onerror = (msg, url, line, column, stack) => {
+    window.onerror = (msg, url, line, column, error) => {
         if (msg === 'ResizeObserver loop limit exceeded') {
             return;
         }
@@ -36,7 +36,7 @@ function preRenderSetup(callwhendone) {
             logError({
                 type: AnnouncementBarTypes.DEVELOPER,
                 message: 'A JavaScript error in the webapp client has occurred. (msg: ' + msg + ', row: ' + line + ', col: ' + column + ').',
-                stack,
+                stack: error.stack,
                 url,
             },
             displayable,
