@@ -6,8 +6,8 @@ import React from 'react';
 import {Button} from 'react-bootstrap';
 import {FormattedMessage} from 'react-intl';
 
+import {ServerError} from '@mattermost/types/errors';
 import {Team} from '@mattermost/types/teams';
-import {Client4Error} from 'mattermost-redux/types/client4';
 
 import {trackEvent} from 'actions/telemetry_actions.jsx';
 
@@ -50,7 +50,7 @@ type Props = {
         /*
      * Action creator to create a new team
      */
-        createTeam: (team: Team) => Promise<{data: Team; error: Client4Error}>;
+        createTeam: (team: Team) => Promise<{data: Team; error: ServerError}>;
     };
     history: {
         push(path: string): void;

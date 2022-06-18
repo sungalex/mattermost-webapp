@@ -9,6 +9,7 @@ import {appsEnabled} from 'mattermost-redux/selectors/entities/apps';
 
 import {ActionFunc, DispatchFunc, GetStateFunc} from 'mattermost-redux/types/actions';
 import type {MarketplaceApp, MarketplacePlugin} from '@mattermost/types/marketplace';
+import {isServerError} from '@mattermost/types/errors';
 import type {CommandArgs} from '@mattermost/types/integrations';
 
 import {GlobalState} from 'types/store';
@@ -33,10 +34,11 @@ export function fetchListing(localOnly = false): ActionFunc {
             plugins = await Client4.getMarketplacePlugins(filter, localOnly);
         } catch (error) {
             // If the marketplace server is unreachable, try to get the local plugins only.
-            if (error.server_error_id === 'app.plugin.marketplace_client.failed_to_fetch' && !localOnly) {
+            if (isServerError(error) && error.server_error_id === 'app.plugin.marketplace_client.failed_to_fetch' && !localOnly) {
                 await dispatch(fetchListing(true));
             }
-            return {error};
+
+            throw error;
         }
 
         dispatch({
@@ -102,12 +104,15 @@ export function installPlugin(id: string, version: string) {
         try {
             await Client4.installMarketplacePlugin(id, version);
         } catch (error) {
-            dispatch({
-                type: ActionTypes.INSTALLING_MARKETPLACE_ITEM_FAILED,
-                id,
-                error: error.message,
-            });
-            return;
+            if (error instanceof Error) {
+                dispatch({
+                    type: ActionTypes.INSTALLING_MARKETPLACE_ITEM_FAILED,
+                    id,
+                    error: error.message,
+                });
+            }
+
+            throw error;
         }
 
         await dispatch(fetchListing());
