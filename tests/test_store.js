@@ -8,10 +8,12 @@ import configureStore from 'redux-mock-store';
 
 import {IntlProvider} from 'react-intl';
 
+import {errorHandlerMiddleware} from 'mattermost-redux/store/error_handler_middleware';
+
 import {defaultIntl} from './helpers/intl-test-helper';
 
 export default function testConfigureStore(initialState = {}) {
-    return configureStore([thunk])(initialState);
+    return configureStore([errorHandlerMiddleware, thunk])(initialState);
 }
 
 export function mockStore(initialState = {}, intl = defaultIntl) {
