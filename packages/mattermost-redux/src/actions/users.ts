@@ -7,14 +7,13 @@ import {batchActions} from 'redux-batched-actions';
 import {Client4} from 'mattermost-redux/client';
 
 import {ActionFunc, ActionResult, DispatchFunc, GetStateFunc} from 'mattermost-redux/types/actions';
-import {UserProfile, UserStatus, GetFilteredUsersStatsOpts, UsersStats, UserCustomStatus} from '@mattermost/types/users';
+import {UserProfile, UserStatus, GetFilteredUsersStatsOpts, UserCustomStatus} from '@mattermost/types/users';
 import {UserTypes, AdminTypes} from 'mattermost-redux/action_types';
 
 import {setServerVersion, getClientConfig, getLicenseConfig} from 'mattermost-redux/actions/general';
 import {getMyTeams, getMyTeamMembers, getMyTeamUnreads} from 'mattermost-redux/actions/teams';
 import {loadRolesIfNeeded} from 'mattermost-redux/actions/roles';
-import {bindClientFunc, forceLogoutIfNecessary, debounce} from 'mattermost-redux/actions/helpers';
-import {logError} from 'mattermost-redux/actions/errors';
+import {bindClientFunc, debounce} from 'mattermost-redux/actions/helpers';
 import {getMyPreferences} from 'mattermost-redux/actions/preferences';
 
 import {getServerVersion} from 'mattermost-redux/selectors/entities/general';
@@ -34,8 +33,8 @@ export function checkMfa(loginId: string): ActionFunc {
             return {data: data.mfa_required};
         } catch (error) {
             dispatch({type: UserTypes.CHECK_MFA_FAILURE, error});
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
     };
 }
@@ -50,16 +49,8 @@ export function generateMfaSecret(userId: string): ActionFunc {
 }
 
 export function createUser(user: UserProfile, token: string, inviteId: string, redirect: string): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let created;
-
-        try {
-            created = await Client4.createUser(user, token, inviteId, redirect);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        const created = await Client4.createUser(user, token, inviteId, redirect);
 
         const profiles: {
             [userId: string]: UserProfile;
@@ -91,8 +82,8 @@ export function login(loginId: string, password: string, mfaToken = '', ldapOnly
                 type: UserTypes.LOGIN_FAILURE,
                 error,
             });
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
 
         return {data: true};
@@ -117,8 +108,8 @@ export function loginById(id: string, password: string, mfaToken = ''): ActionFu
                 type: UserTypes.LOGIN_FAILURE,
                 error,
             });
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
 
         return {data: true};
@@ -138,22 +129,17 @@ export function loadMe(): ActionFunc {
         const serverVersion = Client4.getServerVersion() || getState().entities.general.serverVersion;
         dispatch(setServerVersion(serverVersion));
 
-        try {
-            await Promise.all([
-                dispatch(getClientConfig()),
-                dispatch(getLicenseConfig()),
-                dispatch(getMe()),
-                dispatch(getMyPreferences()),
-                dispatch(getMyTeams()),
-                dispatch(getMyTeamMembers()),
-            ]);
+        await Promise.all([
+            dispatch(getClientConfig()),
+            dispatch(getLicenseConfig()),
+            dispatch(getMe()),
+            dispatch(getMyPreferences()),
+            dispatch(getMyTeams()),
+            dispatch(getMyTeamMembers()),
+        ]);
 
-            const isCollapsedThreads = isCollapsedThreadsEnabled(getState());
-            await dispatch(getMyTeamUnreads(isCollapsedThreads));
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
+        const isCollapsedThreads = isCollapsedThreadsEnabled(getState());
+        await dispatch(getMyTeamUnreads(isCollapsedThreads));
 
         const {currentUserId} = getState().entities.users;
         if (currentUserId) {
@@ -193,38 +179,19 @@ export function getTotalUsersStats(): ActionFunc {
 }
 
 export function getFilteredUsersStats(options: GetFilteredUsersStatsOpts = {}): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let stats: UsersStats;
-        try {
-            stats = await Client4.getFilteredUsersStats(options);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
-
-        dispatch({
-            type: UserTypes.RECEIVED_FILTERED_USER_STATS,
-            data: stats,
-        });
-
-        return {data: stats};
-    };
+    return bindClientFunc({
+        clientFunc: Client4.getFilteredUsersStats,
+        params: [options],
+        onSuccess: UserTypes.RECEIVED_FILTERED_USER_STATS,
+    });
 }
 
 export function getProfiles(page = 0, perPage: number = General.PROFILE_CHUNK_SIZE, options: any = {}): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles: UserProfile[];
 
-        try {
-            profiles = await Client4.getProfiles(page, perPage, options);
-            removeUserFromList(currentUserId, profiles);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfiles(page, perPage, options);
+        removeUserFromList(currentUserId, profiles);
 
         dispatch({
             type: UserTypes.RECEIVED_PROFILES_LIST,
@@ -280,16 +247,9 @@ export function getMissingProfilesByUsernames(usernames: string[]): ActionFunc {
 export function getProfilesByIds(userIds: string[], options?: any): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles: UserProfile[];
 
-        try {
-            profiles = await Client4.getProfilesByIds(userIds, options);
-            removeUserFromList(currentUserId, profiles);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesByIds(userIds, options);
+        removeUserFromList(currentUserId, profiles);
 
         dispatch({
             type: UserTypes.RECEIVED_PROFILES_LIST,
@@ -303,16 +263,9 @@ export function getProfilesByIds(userIds: string[], options?: any): ActionFunc {
 export function getProfilesByUsernames(usernames: string[]): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesByUsernames(usernames);
-            removeUserFromList(currentUserId, profiles);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesByUsernames(usernames);
+        removeUserFromList(currentUserId, profiles);
 
         dispatch({
             type: UserTypes.RECEIVED_PROFILES_LIST,
@@ -326,15 +279,8 @@ export function getProfilesByUsernames(usernames: string[]): ActionFunc {
 export function getProfilesInTeam(teamId: string, page: number, perPage: number = General.PROFILE_CHUNK_SIZE, sort = '', options: any = {}): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesInTeam(teamId, page, perPage, sort, options);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesInTeam(teamId, page, perPage, sort, options);
 
         dispatch(batchActions([
             {
@@ -353,15 +299,8 @@ export function getProfilesInTeam(teamId: string, page: number, perPage: number 
 }
 
 export function getProfilesNotInTeam(teamId: string, groupConstrained: boolean, page: number, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let profiles;
-        try {
-            profiles = await Client4.getProfilesNotInTeam(teamId, groupConstrained, page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        const profiles = await Client4.getProfilesNotInTeam(teamId, groupConstrained, page, perPage);
 
         const receivedProfilesListActionType = groupConstrained ? UserTypes.RECEIVED_PROFILES_LIST_NOT_IN_TEAM_AND_REPLACE : UserTypes.RECEIVED_PROFILES_LIST_NOT_IN_TEAM;
 
@@ -382,15 +321,8 @@ export function getProfilesNotInTeam(teamId: string, groupConstrained: boolean, 
 }
 
 export function getProfilesWithoutTeam(page: number, perPage: number = General.PROFILE_CHUNK_SIZE, options: any = {}): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let profiles = null;
-        try {
-            profiles = await Client4.getProfilesWithoutTeam(page, perPage, options);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        const profiles = await Client4.getProfilesWithoutTeam(page, perPage, options);
 
         dispatch(batchActions([
             {
@@ -410,15 +342,8 @@ export function getProfilesWithoutTeam(page: number, perPage: number = General.P
 export function getProfilesInChannel(channelId: string, page: number, perPage: number = General.PROFILE_CHUNK_SIZE, sort = '', options: {active?: boolean} = {}): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesInChannel(channelId, page, perPage, sort, options);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesInChannel(channelId, page, perPage, sort, options);
 
         dispatch(batchActions([
             {
@@ -439,15 +364,8 @@ export function getProfilesInChannel(channelId: string, page: number, perPage: n
 export function getProfilesInGroupChannels(channelsIds: string[]): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let channelProfiles;
 
-        try {
-            channelProfiles = await Client4.getProfilesInGroupChannels(channelsIds.slice(0, General.MAX_GROUP_CHANNELS_FOR_PROFILES));
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const channelProfiles = await Client4.getProfilesInGroupChannels(channelsIds.slice(0, General.MAX_GROUP_CHANNELS_FOR_PROFILES));
 
         const actions: AnyAction[] = [];
         for (const channelId in channelProfiles) {
@@ -477,15 +395,8 @@ export function getProfilesInGroupChannels(channelsIds: string[]): ActionFunc {
 export function getProfilesNotInChannel(teamId: string, channelId: string, groupConstrained: boolean, page: number, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesNotInChannel(teamId, channelId, groupConstrained, page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesNotInChannel(teamId, channelId, groupConstrained, page, perPage);
 
         const receivedProfilesListActionType = groupConstrained ? UserTypes.RECEIVED_PROFILES_LIST_NOT_IN_CHANNEL_AND_REPLACE : UserTypes.RECEIVED_PROFILES_LIST_NOT_IN_CHANNEL;
 
@@ -559,15 +470,8 @@ export function updateMyTermsOfServiceStatus(termsOfServiceId: string, accepted:
 export function getProfilesInGroup(groupId: string, page = 0, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesInGroup(groupId, page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesInGroup(groupId, page, perPage);
 
         dispatch(batchActions([
             {
@@ -588,15 +492,8 @@ export function getProfilesInGroup(groupId: string, page = 0, perPage: number = 
 export function getProfilesNotInGroup(groupId: string, page = 0, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
-        let profiles;
 
-        try {
-            profiles = await Client4.getProfilesNotInGroup(groupId, page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.getProfilesNotInGroup(groupId, page, perPage);
 
         dispatch(batchActions([
             {
@@ -711,14 +608,8 @@ export function getStatus(userId: string): ActionFunc {
 }
 
 export function setStatus(status: UserStatus): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateStatus(status);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.updateStatus(status);
 
         dispatch({
             type: UserTypes.RECEIVED_STATUS,
@@ -764,14 +655,8 @@ export function getSessions(userId: string): ActionFunc {
 }
 
 export function revokeSession(userId: string, sessionId: string): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.revokeSession(userId, sessionId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.revokeSession(userId, sessionId);
 
         dispatch({
             type: UserTypes.RECEIVED_REVOKED_SESSION,
@@ -785,13 +670,8 @@ export function revokeSession(userId: string, sessionId: string): ActionFunc {
 
 export function revokeAllSessionsForUser(userId: string): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.revokeAllSessionsForUser(userId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.revokeAllSessionsForUser(userId);
+
         const data = {isCurrentUser: userId === getCurrentUserId(getState())};
         dispatch(batchActions([
             {
@@ -805,14 +685,9 @@ export function revokeAllSessionsForUser(userId: string): ActionFunc {
 }
 
 export function revokeSessionsForAllUsers(): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.revokeSessionsForAllUsers();
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.revokeSessionsForAllUsers();
+
         dispatch({
             type: UserTypes.REVOKE_SESSIONS_FOR_ALL_USERS_SUCCESS,
             data: null,
@@ -845,10 +720,9 @@ export function autocompleteUsers(term: string, teamId = '', channelId = '', opt
         try {
             data = await Client4.autocompleteUsers(term, teamId, channelId, options);
         } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
             dispatch({type: UserTypes.AUTOCOMPLETE_USERS_FAILURE, error});
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
 
         let users = [...data.users];
@@ -900,14 +774,7 @@ export function searchProfiles(term: string, options: any = {}): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
         const {currentUserId} = getState().entities.users;
 
-        let profiles;
-        try {
-            profiles = await Client4.searchUsers(term, options);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const profiles = await Client4.searchUsers(term, options);
 
         const actions: AnyAction[] = [{type: UserTypes.RECEIVED_PROFILES_LIST, data: removeUserFromList(currentUserId, [...profiles])}];
 
@@ -1013,8 +880,8 @@ export function updateMe(user: UserProfile): ActionFunc {
             data = await Client4.patchMe(user);
         } catch (error) {
             dispatch({type: UserTypes.UPDATE_ME_FAILURE, error});
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
 
         dispatch(batchActions([
@@ -1028,19 +895,11 @@ export function updateMe(user: UserProfile): ActionFunc {
 }
 
 export function patchUser(user: UserProfile): ActionFunc {
-    return async (dispatch: DispatchFunc) => {
-        let data: UserProfile;
-        try {
-            data = await Client4.patchUser(user);
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
-
-        dispatch({type: UserTypes.RECEIVED_PROFILE, data});
-
-        return {data};
-    };
+    return bindClientFunc({
+        clientFunc: Client4.patchUser,
+        params: [user],
+        onSuccess: UserTypes.RECEIVED_PROFILE,
+    });
 }
 
 export function updateUserRoles(userId: string, roles: string): ActionFunc {
@@ -1062,12 +921,7 @@ export function updateUserRoles(userId: string, roles: string): ActionFunc {
 
 export function updateUserMfa(userId: string, activate: boolean, code = ''): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateUserMfa(userId, activate, code);
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.updateUserMfa(userId, activate, code);
 
         const profile = getState().entities.users.profiles[userId];
         if (profile) {
@@ -1080,12 +934,7 @@ export function updateUserMfa(userId: string, activate: boolean, code = ''): Act
 
 export function updateUserPassword(userId: string, currentPassword: string, newPassword: string): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateUserPassword(userId, currentPassword, newPassword);
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.updateUserPassword(userId, currentPassword, newPassword);
 
         const profile = getState().entities.users.profiles[userId];
         if (profile) {
@@ -1098,12 +947,7 @@ export function updateUserPassword(userId: string, currentPassword: string, newP
 
 export function updateUserActive(userId: string, active: boolean): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateUserActive(userId, active);
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.updateUserActive(userId, active);
 
         const profile = getState().entities.users.profiles[userId];
         if (profile) {
@@ -1154,12 +998,7 @@ export function sendPasswordResetEmail(email: string): ActionFunc {
 
 export function setDefaultProfileImage(userId: string): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.setDefaultProfileImage(userId);
-        } catch (error) {
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.setDefaultProfileImage(userId);
 
         const profile = getState().entities.users.profiles[userId];
         if (profile) {
@@ -1237,15 +1076,7 @@ export function switchLdapToEmail(ldapPassword: string, email: string, emailPass
 
 export function createUserAccessToken(userId: string, description: string): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let data;
-
-        try {
-            data = await Client4.createUserAccessToken(userId, description);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const data = await Client4.createUserAccessToken(userId, description);
 
         const actions: AnyAction[] = [{
             type: AdminTypes.RECEIVED_USER_ACCESS_TOKEN,
@@ -1272,14 +1103,7 @@ export function createUserAccessToken(userId: string, description: string): Acti
 
 export function getUserAccessToken(tokenId: string): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let data;
-        try {
-            data = await Client4.getUserAccessToken(tokenId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const data = await Client4.getUserAccessToken(tokenId);
 
         const actions: AnyAction[] = [{
             type: AdminTypes.RECEIVED_USER_ACCESS_TOKEN,
@@ -1303,36 +1127,16 @@ export function getUserAccessToken(tokenId: string): ActionFunc {
 }
 
 export function getUserAccessTokens(page = 0, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let data;
-
-        try {
-            data = await Client4.getUserAccessTokens(page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
-
-        dispatch({
-            type: AdminTypes.RECEIVED_USER_ACCESS_TOKENS,
-            data,
-        });
-
-        return {data};
-    };
+    return bindClientFunc({
+        clientFunc: Client4.getUserAccessTokens,
+        params: [page, perPage],
+        onSuccess: AdminTypes.RECEIVED_USER_ACCESS_TOKENS,
+    });
 }
 
 export function getUserAccessTokensForUser(userId: string, page = 0, perPage: number = General.PROFILE_CHUNK_SIZE): ActionFunc {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let data;
-        try {
-            data = await Client4.getUserAccessTokensForUser(userId, page, perPage);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        const data = await Client4.getUserAccessTokensForUser(userId, page, perPage);
 
         const actions: AnyAction[] = [{
             type: AdminTypes.RECEIVED_USER_ACCESS_TOKENS_FOR_USER,
@@ -1357,14 +1161,8 @@ export function getUserAccessTokensForUser(userId: string, page = 0, perPage: nu
 }
 
 export function revokeUserAccessToken(tokenId: string): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.revokeUserAccessToken(tokenId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.revokeUserAccessToken(tokenId);
 
         dispatch({
             type: UserTypes.REVOKED_USER_ACCESS_TOKEN,
@@ -1376,14 +1174,8 @@ export function revokeUserAccessToken(tokenId: string): ActionFunc {
 }
 
 export function disableUserAccessToken(tokenId: string): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.disableUserAccessToken(tokenId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.disableUserAccessToken(tokenId);
 
         dispatch({
             type: UserTypes.DISABLED_USER_ACCESS_TOKEN,
@@ -1395,14 +1187,8 @@ export function disableUserAccessToken(tokenId: string): ActionFunc {
 }
 
 export function enableUserAccessToken(tokenId: string): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.enableUserAccessToken(tokenId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.enableUserAccessToken(tokenId);
 
         dispatch({
             type: UserTypes.ENABLED_USER_ACCESS_TOKEN,

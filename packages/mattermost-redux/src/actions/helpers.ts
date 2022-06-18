@@ -1,31 +1,11 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import {Client4} from 'mattermost-redux/client';
-import {UserTypes} from 'mattermost-redux/action_types';
+import {ServerError} from '@mattermost/types/errors';
 
-import {Client4Error} from 'mattermost-redux/types/client4';
-import {ActionFunc, GenericAction, DispatchFunc, GetStateFunc} from 'mattermost-redux/types/actions';
+import {ActionFunc, GenericAction, DispatchFunc} from 'mattermost-redux/types/actions';
 
-import {logError} from './errors';
 type ActionType = string;
-const HTTP_UNAUTHORIZED = 401;
-export function forceLogoutIfNecessary(err: Client4Error, dispatch: DispatchFunc, getState: GetStateFunc) {
-    const {currentUserId} = getState().entities.users;
-
-    if ('status_code' in err && err.status_code === HTTP_UNAUTHORIZED && err.url && err.url.indexOf('/login') === -1 && currentUserId) {
-        Client4.setToken('');
-        dispatch({type: UserTypes.LOGOUT_SUCCESS, data: {}});
-    }
-}
-
-function dispatcher(type: ActionType, data: any, dispatch: DispatchFunc) {
-    if (type.indexOf('SUCCESS') === -1) { // we don't want to pass the data for the request types
-        dispatch(requestSuccess(type, data));
-    } else {
-        dispatch(requestData(type));
-    }
-}
 
 export function requestData(type: ActionType): GenericAction {
     return {
@@ -41,7 +21,7 @@ export function requestSuccess(type: ActionType, data: any) {
     };
 }
 
-export function requestFailure(type: ActionType, error: Client4Error): any {
+export function requestFailure(type: ActionType, error: ServerError): any {
     return {
         type,
         error,
@@ -75,7 +55,7 @@ export function bindClientFunc({
     onFailure?: ActionType;
     params?: any[];
 }): ActionFunc {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
+    return async (dispatch: DispatchFunc) => {
         if (onRequest) {
             dispatch(requestData(onRequest));
         }
@@ -84,20 +64,19 @@ export function bindClientFunc({
         try {
             data = await clientFunc(...params);
         } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            if (onFailure) {
+            if (onFailure && error instanceof Error) {
                 dispatch(requestFailure(onFailure, error));
             }
-            dispatch(logError(error));
-            return {error};
+
+            throw error;
         }
 
         if (Array.isArray(onSuccess)) {
             onSuccess.forEach((s) => {
-                dispatcher(s, data, dispatch);
+                dispatch(requestSuccess(s, data));
             });
         } else if (onSuccess) {
-            dispatcher(onSuccess, data, dispatch);
+            dispatch(requestSuccess(onSuccess, data));
         }
 
         return {data};

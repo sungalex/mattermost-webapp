@@ -29,25 +29,15 @@ import {getChannel} from 'mattermost-redux/selectors/entities/channels';
 
 import {isCollapsedThreadsEnabled} from 'mattermost-redux/selectors/entities/preferences';
 
-import {logError} from './errors';
-import {forceLogoutIfNecessary} from './helpers';
+import {bindClientFunc} from './helpers';
 
 type ExtendedPost = Post & { system_post_ids?: string[] };
 
 export function fetchThreads(userId: string, teamId: string, {before = '', after = '', perPage = ThreadConstants.THREADS_CHUNK_SIZE, unread = false, totalsOnly = false, threadsOnly = false, extended = false, since = 0} = {}) {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let data: undefined | UserThreadList;
-
-        try {
-            data = await Client4.getUserThreads(userId, teamId, {before, after, perPage, extended, unread, totalsOnly, threadsOnly, since});
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
-
-        return {data};
-    };
+    return bindClientFunc({
+        clientFunc: Client4.getUserThreads,
+        params: [userId, teamId, {before, after, perPage, extended, unread, totalsOnly, threadsOnly, since}],
+    });
 }
 
 export function getThreads(userId: string, teamId: string, {before = '', after = '', perPage = ThreadConstants.THREADS_CHUNK_SIZE, unread = false, extended = true} = {}) {
@@ -226,14 +216,7 @@ export function handleThreadArrived(dispatch: DispatchFunc, getState: GetStateFu
 
 export function getThread(userId: string, teamId: string, threadId: string, extended = true) {
     return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        let thread;
-        try {
-            thread = await Client4.getUserThread(userId, teamId, threadId, extended);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        let thread: UserThread = await Client4.getUserThread(userId, teamId, threadId, extended);
 
         if (thread) {
             thread = handleThreadArrived(dispatch, getState, thread, teamId);
@@ -253,14 +236,8 @@ export function handleAllMarkedRead(dispatch: DispatchFunc, teamId: string) {
 }
 
 export function markAllThreadsInTeamRead(userId: string, teamId: string) {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateThreadsReadForUser(userId, teamId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async (dispatch: DispatchFunc) => {
+        await Client4.updateThreadsReadForUser(userId, teamId);
 
         handleAllMarkedRead(dispatch, teamId);
 
@@ -269,28 +246,16 @@ export function markAllThreadsInTeamRead(userId: string, teamId: string) {
 }
 
 export function markThreadAsUnread(userId: string, teamId: string, threadId: string, postId: string) {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.markThreadAsUnreadForUser(userId, teamId, threadId, postId);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async () => {
+        await Client4.markThreadAsUnreadForUser(userId, teamId, threadId, postId);
 
         return {};
     };
 }
 
 export function updateThreadRead(userId: string, teamId: string, threadId: string, timestamp: number) {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
-        try {
-            await Client4.updateThreadReadForUser(userId, teamId, threadId, timestamp);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+    return async () => {
+        await Client4.updateThreadReadForUser(userId, teamId, threadId, timestamp);
 
         return {};
     };
@@ -342,16 +307,11 @@ export function handleFollowChanged(dispatch: DispatchFunc, threadId: string, te
 }
 
 export function setThreadFollow(userId: string, teamId: string, threadId: string, newState: boolean) {
-    return async (dispatch: DispatchFunc, getState: GetStateFunc) => {
+    return async (dispatch: DispatchFunc) => {
         handleFollowChanged(dispatch, threadId, teamId, newState);
 
-        try {
-            await Client4.updateThreadFollowForUser(userId, teamId, threadId, newState);
-        } catch (error) {
-            forceLogoutIfNecessary(error, dispatch, getState);
-            dispatch(logError(error));
-            return {error};
-        }
+        await Client4.updateThreadFollowForUser(userId, teamId, threadId, newState);
+
         return {};
     };
 }
