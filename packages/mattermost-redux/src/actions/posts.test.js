@@ -393,6 +393,8 @@ describe('Actions.Posts', () => {
             prev_post_id: '',
         };
 
+        TestHelper.mockGetProfilesAndStatusesForPosts();
+
         nock(Client4.getUsersRoute()).
             get(`/${userId}/channels/${channelId}/posts/unread`).
             query(true).
@@ -418,6 +420,8 @@ describe('Actions.Posts', () => {
                 [comment.id]: comment,
             },
         };
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         nock(Client4.getBaseRoute()).
             get(`/posts/${post.id}/thread?skipFetchThreads=false&collapsedThreads=true&collapsedThreadsExtended=false&direction=down&perPage=60`).
@@ -463,6 +467,8 @@ describe('Actions.Posts', () => {
                 post4,
             },
         };
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         nock(Client4.getChannelsRoute()).
             get('/channel1/posts').
@@ -593,6 +599,8 @@ describe('Actions.Posts', () => {
             },
         });
 
+        TestHelper.mockGetProfilesAndStatusesForPosts();
+
         const postList = {
             order: ['post4', 'post3', 'post1'],
             posts: {
@@ -653,6 +661,8 @@ describe('Actions.Posts', () => {
             },
         });
 
+        TestHelper.mockGetProfilesAndStatusesForPosts();
+
         const postList = {
             order: [post2.id, post1.id],
             posts: {
@@ -704,6 +714,8 @@ describe('Actions.Posts', () => {
                 },
             },
         });
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         const postList = {
             order: [post3.id, post2.id],
@@ -758,6 +770,8 @@ describe('Actions.Posts', () => {
                 },
             },
         });
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         const postList = {
             order: [post3.id, post2.id],
@@ -820,6 +834,8 @@ describe('Actions.Posts', () => {
             next_post_id: 'post3',
             before_post_id: 'post6',
         };
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         nock(Client4.getChannelsRoute()).
             get(`/${channelId}/posts`).
@@ -1009,6 +1025,8 @@ describe('Actions.Posts', () => {
         const postList = {order: [post1.id], posts: {}};
         postList.posts[post1.id] = post1;
 
+        TestHelper.mockGetProfilesAndStatusesForPosts();
+
         nock(Client4.getBaseRoute()).
             get(`/posts/${post1.id}/thread?skipFetchThreads=false&collapsedThreads=true&collapsedThreadsExtended=false&direction=down&perPage=60`).
             reply(200, postList);
@@ -1047,6 +1065,8 @@ describe('Actions.Posts', () => {
 
         const postList = {order: [post1.id], posts: {}};
         postList.posts[post1.id] = post1;
+
+        TestHelper.mockGetProfilesAndStatusesForPosts();
 
         nock(Client4.getBaseRoute()).
             get(`/posts/${post1.id}/thread?skipFetchThreads=false&collapsedThreads=true&collapsedThreadsExtended=false&direction=down&perPage=60`).
@@ -1453,6 +1473,8 @@ describe('Actions.Posts', () => {
     describe('getThreadsForPosts', () => {
         beforeAll(() => {
             TestHelper.initBasic(Client4);
+
+            TestHelper.mockGetProfilesAndStatusesForPosts();
         });
 
         afterAll(() => {
