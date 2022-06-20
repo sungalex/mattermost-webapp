@@ -12,7 +12,6 @@ import {StatusOK} from '@mattermost/types/client4';
 
 import {isLicenseExpired, isLicenseExpiring, isTrialLicense, isEnterpriseOrE20License} from 'utils/license_utils';
 
-import * as AdminActions from 'actions/admin_actions.jsx';
 import {trackEvent} from 'actions/telemetry_actions';
 
 import FormattedAdminHeader from 'components/widgets/admin_console/formatted_admin_header';
@@ -47,6 +46,7 @@ type Props = {
     prevTrialLicense: ClientLicense;
     actions: {
         getLicenseConfig: () => void;
+        getStandardAnalytics: () => void;
         uploadLicense: (file: File) => Promise<ActionResult>;
         removeLicense: () => Promise<ActionResult>;
         getPrevTrialLicense: () => void;
@@ -104,7 +104,7 @@ export default class LicenseSettings extends React.PureComponent<Props, State> {
             this.reloadPercentage();
         }
         this.props.actions.getLicenseConfig();
-        AdminActions.getStandardAnalytics();
+        this.props.actions.getStandardAnalytics();
     }
 
     componentDidUpdate(prevProps: Props, prevState: State) {
