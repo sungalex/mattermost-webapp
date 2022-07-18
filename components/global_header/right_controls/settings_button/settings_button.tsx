@@ -8,7 +8,7 @@ import IconButton from '@mattermost/compass-components/components/icon-button';
 
 import OverlayTrigger from 'components/overlay_trigger';
 import Tooltip from 'components/tooltip';
-import UserSettingsModal from 'components/user_settings/modal';
+import {UserSettingsModal} from 'components/new_user_settings/user_settings_modal/user_settings_modal';
 
 import {ModalData} from 'types/actions';
 
@@ -41,7 +41,7 @@ const SettingsButton = (props: Props): JSX.Element | null => {
                 size={'sm'}
                 icon={'settings-outline'}
                 onClick={(): void => {
-                    props.actions.openModal({modalId: ModalIdentifiers.USER_SETTINGS, dialogType: UserSettingsModal, dialogProps: {isContentProductSettings: true}});
+                    props.actions.openModal({modalId: ModalIdentifiers.USER_SETTINGS, dialogType: UserSettingsModal});
                 }}
                 inverted={true}
                 compact={true}

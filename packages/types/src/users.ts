@@ -9,8 +9,14 @@ import {Team} from './teams';
 import {IDMappedObjects, RelationOneToMany, RelationOneToManyUnique, RelationOneToOne} from './utilities';
 
 export type UserNotifyProps = {
+    auto_responder_message: string;
+    auto_responder_active: string;
+    desktop_notification_sound: any;
+    email_threads: any;
+    push_threads: any;
     desktop: 'default' | 'all' | 'mention' | 'none';
-    desktop_sound: 'true' | 'false';
+    desktop_sound: string;
+    desktop_threads: 'default' | 'all' | 'mention' | 'none';
     email: 'true' | 'false';
     mark_unread: 'all' | 'mention';
     push: 'default' | 'all' | 'mention' | 'none';
@@ -19,6 +25,8 @@ export type UserNotifyProps = {
     first_name: 'true' | 'false';
     channel: 'true' | 'false';
     mention_keys: string;
+    sendEmailNotifications: 30 | 900 | 3600;
+    mobileNotificationsSameAsDesktop: 'true' | 'false'
 };
 
 export type UserProfile = {
