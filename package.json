@@ -45,7 +45,7 @@
     "localforage": "1.10.0",
     "localforage-observable": "2.1.1",
     "lodash": "4.17.21",
-    "luxon": "2.4.0",
+    "luxon": "2.5.2",
     "mark.js": "8.11.1",
     "marked": "github:mattermost/marked#2ef7f28cc7718e3f551c4ce9ea75fdd7580c2008",
     "memoize-one": "5.2.1",
