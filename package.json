@@ -188,7 +188,7 @@
     "remote-redux-devtools": "0.5.16",
     "sass-loader": "12.1.0",
     "style-loader": "3.0.0",
-    "stylelint": "13.13.1",
+    "stylelint": "15.10.1",
     "stylelint-config-idiomatic-order": "8.1.0",
     "stylelint-config-recommended": "5.0.0",
     "stylelint-config-recommended-scss": "4.2.0",
